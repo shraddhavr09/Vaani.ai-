@@ -633,6 +633,12 @@ export default function CoachPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioContext = new AudioContext();
+      
+      // Ensure the AudioContext is running (needed for some browsers)
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
@@ -705,22 +711,24 @@ export default function CoachPage() {
         body: formData,
       });
 
+      const result = await response.json().catch(() => ({ error: "Failed to parse server response." }));
+
       if (!response.ok) {
-        throw new Error("Coach analysis failed.");
+        throw new Error(result.error || `Analysis failed with status ${response.status}`);
       }
 
-      const result = (await response.json()) as Assessment;
-      setAssessment(result);
-      saveCoachSession(result, onboarding, clipDuration);
+      const assessmentResult = result as Assessment;
+      setAssessment(assessmentResult);
+      saveCoachSession(assessmentResult, onboarding, clipDuration);
 
-      if (result.error) {
-        setError(result.error);
+      if (assessmentResult.error) {
+        setError(assessmentResult.error);
       }
-    } catch {
+    } catch (err) {
       const localAssessment = createAssessment(clipDuration, onboarding);
       setAssessment(localAssessment);
       saveCoachSession(localAssessment, onboarding, clipDuration);
-      setError("AI analysis is unavailable, so Vaani generated a local coaching report.");
+      setError(err instanceof Error ? err.message : "AI analysis is unavailable, so Vaani generated a local coaching report.");
     } finally {
       setIsAnalyzing(false);
     }

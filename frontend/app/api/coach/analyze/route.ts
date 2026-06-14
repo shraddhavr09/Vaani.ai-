@@ -175,14 +175,22 @@ function sanitizeGeminiError(error: string) {
   }
 
   if (error.includes("INVALID_ARGUMENT") || error.includes("400")) {
-    return "Gemini rejected the audio request. Vaani adjusted WebM recordings for Gemini, so try recording again.";
+    return "Gemini rejected the audio request. The format might be unsupported or the audio is too short.";
   }
 
-  if (error.includes("429")) {
+  if (error.includes("429") || error.includes("RESOURCE_EXHAUSTED")) {
     return "Gemini rate limit was reached. Try again shortly.";
   }
 
-  return "Gemini analysis could not complete. Try recording again after restarting the dev server.";
+  if (error.includes("not found") || error.includes("404")) {
+    return "The Gemini model was not found. Check your GEMINI_MODEL setting or use a standard model like gemini-1.5-flash.";
+  }
+
+  if (error.includes("AI response did not include JSON")) {
+    return "Gemini returned a non-JSON response. This can happen with very short audio or safety filter triggers.";
+  }
+
+  return `Gemini analysis error: ${error.length > 100 ? error.substring(0, 100) + "..." : error}`;
 }
 
 function extractJson(text: string) {
@@ -338,30 +346,11 @@ export async function POST(request: NextRequest) {
   const mimeType = getGeminiMimeType(audio.type || "audio/webm");
   const models = Array.from(
     new Set([
-      process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      process.env.GEMINI_MODEL || "gemini-1.5-flash",
       "gemini-2.0-flash",
-      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
     ])
   );
-
-  const transcriptionPrompt = `Transcribe the attached speech audio for Vaani AI.
-
-Return only valid JSON:
-{
-  "transcript": string,
-  "confidence": number,
-  "notes": string[]
-}
-
-Rules:
-- Language hint: ${coachRequest.language}
-- Language-specific instruction: ${getLanguageGuidance(coachRequest.language)}
-- Preserve the user's words as closely as possible.
-- For Tamil, Telugu, Kannada, Hindi, and other non-English languages, keep the transcript in the correct native script when the speech is identifiable.
-- If the speaker mixes languages, preserve the mixed-language wording instead of translating it all to English.
-- Do not invent phrases, names, examples, or complete sentences that are not clearly audible.
-- If audio is silent, noisy, too short, or unclear, state that in transcript and lower confidence.
-- Mark uncertain spans with [unclear].`;
 
   const analysisPrompt = `You are Vaani AI, a supportive speech and communication coach.
 
@@ -441,35 +430,11 @@ Pronunciation rules:
           data: audioBase64,
         },
       };
-      const transcriptText = await callGemini(
-        apiKey,
-        model,
-        [{ text: transcriptionPrompt }, audioPart],
-        0
-      );
-      const transcriptJson = extractJson(transcriptText) as {
-        transcript?: string;
-        confidence?: number;
-        notes?: string[];
-      };
+
       const text = await callGemini(
         apiKey,
         model,
-        [
-          {
-            text: `${analysisPrompt}
-
-Transcript pass:
-${transcriptJson.transcript || "[unclear]"}
-
-Transcript confidence:
-${clampScore((transcriptJson.confidence || 0) * 100, 50)}/100
-
-Transcription notes:
-${(transcriptJson.notes || []).join("; ") || "None"}`,
-          },
-          audioPart,
-        ],
+        [{ text: analysisPrompt }, audioPart],
         0.15
       );
 
@@ -478,7 +443,6 @@ ${(transcriptJson.notes || []).join("; ") || "None"}`,
 
         return NextResponse.json({
           ...assessment,
-          transcript: transcriptJson.transcript || assessment.transcript,
           model,
         });
       } catch {
@@ -487,15 +451,17 @@ ${(transcriptJson.notes || []).join("; ") || "None"}`,
     } catch (error) {
       lastError = error instanceof Error ? error.message : "Gemini fetch failed.";
 
+      // Fatal errors: don't bother retrying with other models
       if (
-        lastError.includes("429") ||
-        lastError.includes("500") ||
-        lastError.includes("502") ||
-        lastError.includes("503") ||
-        lastError.includes("504")
+        lastError.includes("API key not valid") ||
+        lastError.includes("PERMISSION_DENIED") ||
+        lastError.includes("403")
       ) {
-        continue;
+        break;
       }
+
+      // For other errors (404, 429, 500s, etc.), try the next model
+      continue;
     }
   }
 

@@ -120,27 +120,34 @@ export default function LoginPage() {
       if (!name || !email || !password) return;
 
       if (backendUrl) {
-        const response = await fetch(`${backendUrl}/auth/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
-        });
+        try {
+          const response = await fetch(`${backendUrl}/auth/signup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, email, password }),
+          });
 
-        if (!response.ok) {
-          setError("Could not create your account. Try a different email.");
+          if (!response.ok) {
+            setError("Could not create your account. Try a different email.");
+            return;
+          }
+
+          const result = await response.json();
+          clearCoachData();
+          saveProfile(result.profile, "/onboarding");
+          return;
+        } catch (err) {
+          console.error("Backend signup failed", err);
+          setError("Server is unreachable. Try again later or use local mode if available.");
           return;
         }
-
-        const result = await response.json();
-        clearCoachData();
-        saveProfile(result.profile, "/onboarding");
-        return;
       }
 
       clearCoachData();
       saveProfile({
         name,
         email,
+        password, // Store password for local login verification
         provider: "email",
         createdAt: new Date().toISOString(),
       }, "/onboarding");
@@ -148,20 +155,26 @@ export default function LoginPage() {
     }
 
     if (backendUrl) {
-      const response = await fetch(`${backendUrl}/auth/signin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      try {
+        const response = await fetch(`${backendUrl}/auth/signin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
 
-      if (!response.ok) {
-        setError("Invalid email or password.");
+        if (!response.ok) {
+          setError("Invalid email or password.");
+          return;
+        }
+
+        const result = await response.json();
+        saveProfile(result.profile, hasOnboarding() ? "/dashboard" : "/onboarding");
         return;
+      } catch (err) {
+        // If backend fails, we could optionally allow local fallback 
+        // but for now let's just log it and try local.
+        console.error("Backend signin failed", err);
       }
-
-      const result = await response.json();
-      saveProfile(result.profile, hasOnboarding() ? "/dashboard" : "/onboarding");
-      return;
     }
 
     const stored = localStorage.getItem("vaani-profile");
@@ -171,10 +184,15 @@ export default function LoginPage() {
       return;
     }
 
-    const profile = JSON.parse(stored);
+    try {
+      const profile = JSON.parse(stored);
 
-    if (profile.email !== email) {
-      setError("Email not recognised. Please sign up first.");
+      if (profile.email !== email || (profile.password && profile.password !== password)) {
+        setError("Invalid email or password.");
+        return;
+      }
+    } catch {
+      setError("Profile data is corrupted. Please sign up again.");
       return;
     }
 
