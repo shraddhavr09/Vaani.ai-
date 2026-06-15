@@ -221,7 +221,7 @@ export default function CompanyDashboardPage() {
     const employee: Employee = {
       id: `employee-${Date.now()}`,
       name: employeeForm.name,
-      email: employeeForm.email,
+      email: employeeForm.email.toLowerCase(),
       department: employeeForm.department || "General",
       role: employeeForm.role || "Employee",
       scores: {},
@@ -239,18 +239,24 @@ export default function CompanyDashboardPage() {
   function saveScorecard() {
     if (!selectedEmployee) return;
 
-    saveEmployees(
-      employees.map((employee) =>
-        employee.id === selectedEmployee.id
-              ? {
-                  ...employee,
-              scores: visibleScores,
-              notes: visibleNotes,
-              updatedAt: new Date().toISOString(),
-            }
-          : employee
-      )
+    const updatedEmployees = employees.map((employee) =>
+      employee.id === selectedEmployee.id
+            ? {
+                ...employee,
+            scores: visibleScores,
+            notes: visibleNotes,
+            updatedAt: new Date().toISOString(),
+          }
+        : employee
     );
+
+    saveEmployees(updatedEmployees);
+    
+    // Explicitly dispatch storage event for cross-tab sync to employee dashboard
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "vaani-company-employees",
+      newValue: JSON.stringify(updatedEmployees)
+    }));
   }
 
   function removeEmployee(id: string) {
@@ -389,6 +395,11 @@ export default function CompanyDashboardPage() {
                           <p className="mt-1 text-sm text-[#d8eff2]/58">
                             {employee.role} · {employee.department}
                           </p>
+                          {employee.updatedAt && (
+                            <p className="mt-2 text-[10px] uppercase tracking-wider text-[#6ee7d8]/60 font-bold">
+                              Last activity: {new Date(employee.updatedAt).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                         <span className="grid h-12 w-12 place-items-center rounded-md bg-[#6ee7d8]/10 font-black text-[#9ff5ec]">
                           {average || "-"}

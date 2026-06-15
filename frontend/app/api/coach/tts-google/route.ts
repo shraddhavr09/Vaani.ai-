@@ -53,12 +53,11 @@ export async function POST(request: NextRequest) {
           voice: {
             languageCode: actualLanguageCode,
             name: actualVoiceName,
-            ssmlGender: "FEMALE",
           },
           audioConfig: {
             audioEncoding: "MP3",
             pitch: 0,
-            speakingRate: 1.0,
+            speakingRate: 1.1,
           },
         }),
       }

@@ -142,6 +142,29 @@ export default function DashboardPage() {
     getSessionsSnapshot,
     getServerSessionsSnapshot
   );
+  const companyNotes = useSyncExternalStore(
+    (callback) => {
+      window.addEventListener("storage", callback);
+      window.addEventListener("vaani-employees-change", callback);
+      return () => {
+        window.removeEventListener("storage", callback);
+        window.removeEventListener("vaani-employees-change", callback);
+      };
+    },
+    () => {
+      if (typeof window === "undefined" || !profile?.email) return "";
+      try {
+        const employeesRaw = window.localStorage.getItem("vaani-company-employees");
+        if (employeesRaw) {
+          const employees = JSON.parse(employeesRaw);
+          const emp = employees.find((e: any) => e.email.toLowerCase() === profile.email.toLowerCase());
+          return emp?.notes || "";
+        }
+      } catch { /* ignore */ }
+      return "";
+    },
+    () => ""
+  );
   const latestSession = sessions[0];
   const skillScores = useMemo(() => {
     if (!latestSession || typeof window === "undefined") {
@@ -189,11 +212,11 @@ export default function DashboardPage() {
   }, [isHydrated, profile]);
 
   useEffect(() => {
-    if (!isHydrated || !profile || profile.companyName) {
+    if (!isHydrated || !profile) {
       return;
     }
 
-    // Try to sync company if not already set
+    // Proactively sync company membership from the global employee list
     try {
       const companyRaw = localStorage.getItem("vaani-company-profile");
       const employeesRaw = localStorage.getItem("vaani-company-employees");
@@ -207,16 +230,20 @@ export default function DashboardPage() {
             (emp: any) => emp.email.toLowerCase() === profile.email.toLowerCase()
           );
           
-          if (isEmployee) {
+          if (isEmployee && profile.companyName !== company.companyName) {
             const updatedProfile = { ...profile, companyName: company.companyName };
             localStorage.setItem("vaani-profile", JSON.stringify(updatedProfile));
-            // Trigger a re-render by dispatching the event
+            window.dispatchEvent(new Event("vaani-profile-change"));
+          } else if (!isEmployee && profile.companyName) {
+            // If removed from company, update profile
+            const { companyName: _, ...rest } = profile;
+            localStorage.setItem("vaani-profile", JSON.stringify(rest));
             window.dispatchEvent(new Event("vaani-profile-change"));
           }
         }
       }
     } catch (err) {
-      // Ignore sync errors in dashboard
+      console.error("Dashboard company sync error:", err);
     }
   }, [isHydrated, profile]);
 
@@ -351,32 +378,48 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-          <section className="rounded-lg border border-cyan-300/10 bg-white/[0.04] p-7 backdrop-blur-xl">
-            <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">
-              Skill map
-            </p>
-            <div className="mt-6 grid gap-5">
-              {skillScores.length ? skillScores.map(({ title, value }) => (
-                <div key={title}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-bold text-white">{title}</span>
-                    <span className="font-bold text-cyan-200">{value}/100</span>
+          <div className="flex flex-col gap-6">
+            <section className="rounded-lg border border-cyan-300/10 bg-white/[0.04] p-7 backdrop-blur-xl">
+              <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">
+                Skill map
+              </p>
+              <div className="mt-6 grid gap-5">
+                {skillScores.length ? skillScores.map(({ title, value }) => (
+                  <div key={title}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold text-white">{title}</span>
+                      <span className="font-bold text-cyan-200">{value}/100</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-cyan-300"
+                        style={{ width: `${value}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-cyan-300"
-                      style={{ width: `${value}%` }}
-                    />
-                  </div>
-                </div>
-              )) : (
-                <p className="rounded-md border border-white/10 bg-[#06162d] p-4 leading-7 text-white/62">
-                  No score map yet. Complete a coach recording to fill this with
-                  your actual AI analysis.
+                )) : (
+                  <p className="rounded-md border border-white/10 bg-[#06162d] p-4 leading-7 text-white/62">
+                    No score map yet. Complete a coach recording to fill this with
+                    your actual AI analysis.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            {companyNotes && (
+              <section className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-7 backdrop-blur-xl">
+                <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">
+                  Company Feedback
                 </p>
-              )}
-            </div>
-          </section>
+                <div className="mt-5 rounded-md border border-cyan-300/10 bg-[#06162d]/60 p-5">
+                  <p className="text-lg font-black text-white">Manager Notes</p>
+                  <p className="mt-3 leading-7 text-cyan-50/80 italic">
+                    "{companyNotes}"
+                  </p>
+                </div>
+              </section>
+            )}
+          </div>
 
           <section className="rounded-lg border border-cyan-300/10 bg-white/[0.04] p-7 backdrop-blur-2xl">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

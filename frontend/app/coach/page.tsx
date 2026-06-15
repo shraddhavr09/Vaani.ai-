@@ -121,15 +121,15 @@ const languageVoiceCodes: Record<string, string> = {
 };
 
 const googleCloudVoices: Record<string, string> = {
-  "en-IN": "en-IN-Neural2-B",
+  "en-IN": "en-IN-Neural2-A",
   "hi-IN": "hi-IN-Neural2-A",
   "ta-IN": "ta-IN-Neural2-A",
   "te-IN": "te-IN-Neural2-A",
-  "kn-IN": "kn-IN-Wavenet-A",
+  "kn-IN": "kn-IN-Neural2-A",
   "mr-IN": "mr-IN-Wavenet-A",
-  "bn-IN": "bn-IN-Wavenet-A",
-  "gu-IN": "gu-IN-Wavenet-A",
-  "ml-IN": "ml-IN-Wavenet-A",
+  "bn-IN": "bn-IN-Neural2-A",
+  "gu-IN": "gu-IN-Neural2-A",
+  "ml-IN": "ml-IN-Neural2-A",
   "pa-IN": "pa-IN-Wavenet-A",
   "ur-PK": "ur-PK-Wavenet-A",
   "ur-IN": "ur-PK-Wavenet-A",
@@ -425,6 +425,46 @@ function saveCoachSession(
       createdAt,
     })
   );
+
+  // Sync with company dashboard if applicable
+  try {
+    const profileRaw = window.localStorage.getItem("vaani-profile");
+    const employeesRaw = window.localStorage.getItem("vaani-company-employees");
+    
+    if (profileRaw && employeesRaw) {
+      const profile = JSON.parse(profileRaw);
+      const employees = JSON.parse(employeesRaw);
+      const email = profile.email.toLowerCase();
+      
+      if (Array.isArray(employees)) {
+        let matched = false;
+        const updatedEmployees = employees.map((emp: any) => {
+          if (emp.email.toLowerCase() === email) {
+            matched = true;
+            return {
+              ...emp,
+              scores: assessment.scores,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return emp;
+        });
+        
+        if (matched) {
+          window.localStorage.setItem("vaani-company-employees", JSON.stringify(updatedEmployees));
+          // Dispatch both a local event and rely on storage event for cross-tab sync
+          window.dispatchEvent(new Event("vaani-employees-change"));
+          window.dispatchEvent(new StorageEvent("storage", {
+            key: "vaani-company-employees",
+            newValue: JSON.stringify(updatedEmployees)
+          }));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Company sync failed:", err);
+  }
+
   window.dispatchEvent(new Event("vaani-sessions-change"));
 }
 
@@ -920,8 +960,8 @@ export default function CoachPage() {
     } else {
       utterance.lang = speechLanguage;
     }
-    utterance.rate = 0.88;
-    utterance.pitch = 1.02;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
     utterance.volume = 1;
     
     utterance.onstart = () => setError("");
@@ -1181,6 +1221,9 @@ export default function CoachPage() {
                               <optgroup label="OpenAI AI (Clear & Warm)">
                                 <option value="ai-nova">Nova (Supportive)</option>
                                 <option value="ai-shimmer">Shimmer (Warm)</option>
+                                <option value="ai-alloy">Alloy (Neutral)</option>
+                                <option value="ai-echo">Echo (Confident)</option>
+                                <option value="ai-fable">Fable (Narrative)</option>
                                 <option value="ai-onyx">Onyx (Steady)</option>
                               </optgroup>
                               <optgroup label="System Voices (Browser)">

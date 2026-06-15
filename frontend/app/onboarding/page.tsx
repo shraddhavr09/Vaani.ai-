@@ -141,6 +141,8 @@ export default function OnboardingPage() {
   const [goal, setGoal] = useState("Interview confidence");
   const [focusAreas, setFocusAreas] = useState(["Tone", "Clarity", "Confidence"]);
 
+  const [customFocus, setCustomFocus] = useState("");
+
   function toggleFocusArea(area: string) {
     setFocusAreas((current) => {
       if (current.includes(area)) {
@@ -155,9 +157,16 @@ export default function OnboardingPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    
+    // Combine preset focus areas with custom focus if provided
+    const finalFocusAreas = [...focusAreas];
+    if (customFocus.trim()) {
+      finalFocusAreas.push(customFocus.trim());
+    }
+
     window.localStorage.setItem(
       "vaani-onboarding",
-      JSON.stringify({ language, level, goal, focusAreas })
+      JSON.stringify({ language, level, goal, focusAreas: finalFocusAreas })
     );
     router.push("/coach");
   }
@@ -239,8 +248,8 @@ export default function OnboardingPage() {
                 <button
                   className={`rounded-md border px-4 py-3 text-left font-bold transition ${
                     level === item
-                      ? "border-[#2f8cff] bg-[#2f8cff] text-white"
-                      : "border-white/10 bg-[#06162d] text-[#d7f4ff] hover:border-[#2f8cff]/50"
+                      ? "border-[#72e2ff] bg-[#72e2ff] text-[#04111c] shadow-[0_0_15px_rgba(114,226,255,0.4)]"
+                      : "border-white/10 bg-[#06162d] text-[#d7f4ff] hover:border-[#72e2ff]/50"
                   }`}
                   key={item}
                   onClick={() => setLevel(item)}
@@ -299,7 +308,23 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          <button className="mt-7 w-full rounded-md bg-[#72e2ff] px-5 py-4 font-black text-[#04111c] transition hover:bg-[#a9f1ff]">
+          <div className="mt-7">
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-[#d7f4ff]/80">
+                Specific focus (Optional)
+              </span>
+              <input
+                className="rounded-md border border-white/10 bg-[#06162d] px-4 py-4 text-white outline-none transition placeholder:text-white/20 focus:border-[#72e2ff]/70"
+                onChange={(event) => setCustomFocus(event.target.value)}
+                name="customFocus"
+                placeholder="e.g. Speak more like a leader, reduce mother tongue influence..."
+                type="text"
+                value={customFocus}
+              />
+            </label>
+          </div>
+
+          <button className="mt-7 w-full rounded-md bg-gradient-to-r from-[#72e2ff] to-[#2f8cff] px-5 py-5 font-black text-[#04111c] transition hover:scale-[1.02] active:scale-[0.98] shadow-[0_10px_40px_rgba(47,140,255,0.3)]">
             Open AI coach
           </button>
         </form>
