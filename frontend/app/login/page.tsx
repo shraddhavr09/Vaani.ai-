@@ -26,6 +26,14 @@ declare global {
   }
 }
 
+type User = {
+  name: string;
+  email: string;
+  password?: string;
+  provider: "email" | "google";
+  createdAt?: string;
+};
+
 export default function LoginPage() {
   const [mode, setMode] = useState<"signup" | "signin">("signup");
   const [name, setName] = useState("");
@@ -64,15 +72,7 @@ export default function LoginPage() {
 
   const hasOnboarding = () => Boolean(localStorage.getItem("vaani-onboarding"));
 
-  const saveProfile = (
-    profile: {
-      name: string;
-      email: string;
-      provider: "email" | "google";
-      createdAt?: string;
-    },
-    nextPath: string
-  ) => {
+  const saveProfile = (profile: User, nextPath: string) => {
     resetLearnerState(profile.email);
     const destination =
       nextPath === "/dashboard" && !hasOnboarding() ? "/onboarding" : nextPath;
@@ -144,13 +144,14 @@ export default function LoginPage() {
       }
 
       clearCoachData();
-      saveProfile({
+      const user: User = {
         name,
         email,
-        password, // Store password for local login verification
+        password,
         provider: "email",
         createdAt: new Date().toISOString(),
-      }, "/onboarding");
+      };
+      saveProfile(user, "/onboarding");
       return;
     }
 
@@ -256,12 +257,14 @@ export default function LoginPage() {
 
             const nextPath = hasOnboarding() ? "/dashboard" : "/onboarding";
 
-            saveProfile({
+            const user: User = {
               name: profile.name || profile.email.split("@")[0],
               email: profile.email,
               provider: "google",
               createdAt: new Date().toISOString(),
-            }, nextPath);
+            };
+
+            saveProfile(user, nextPath);
           } catch (googleError) {
             setIsGoogleLoading(false);
             setError(
