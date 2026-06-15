@@ -183,7 +183,7 @@ function sanitizeGeminiError(error: string) {
   }
 
   if (error.includes("not found") || error.includes("404")) {
-    return "The Gemini model was not found. Check your GEMINI_MODEL setting or use a standard model like gemini-1.5-flash.";
+    return "The Gemini model was not found. Check your GEMINI_MODEL setting or use a standard model like gemini-2.5-flash.";
   }
 
   if (error.includes("AI response did not include JSON")) {
@@ -346,10 +346,11 @@ export async function POST(request: NextRequest) {
   const mimeType = getGeminiMimeType(audio.type || "audio/webm");
   const models = Array.from(
     new Set([
-      process.env.GEMINI_MODEL || "gemini-1.5-flash",
-      "gemini-1.5-flash",
+      process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
       "gemini-2.0-flash",
-      "gemini-1.5-flash-8b",
+      "gemini-1.5-flash",
       "gemini-1.5-pro",
     ])
   );
