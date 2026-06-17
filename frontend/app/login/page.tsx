@@ -78,7 +78,7 @@ export default function LoginPage() {
       nextPath === "/dashboard" && !hasOnboarding() ? "/onboarding" : nextPath;
 
     // Check for company sync
-    let companyName = "";
+    let companyName = (profile as any).companyName || "";
     try {
       const companyRaw = localStorage.getItem("vaani-company-profile");
       const employeesRaw = localStorage.getItem("vaani-company-employees");
@@ -172,8 +172,6 @@ export default function LoginPage() {
         saveProfile(result.profile, hasOnboarding() ? "/dashboard" : "/onboarding");
         return;
       } catch (err) {
-        // If backend fails, we could optionally allow local fallback 
-        // but for now let's just log it and try local.
         console.error("Backend signin failed", err);
       }
     }
@@ -192,12 +190,12 @@ export default function LoginPage() {
         setError("Invalid email or password.");
         return;
       }
+      
+      saveProfile(profile, hasOnboarding() ? "/dashboard" : "/onboarding");
     } catch {
       setError("Profile data is corrupted. Please sign up again.");
       return;
     }
-
-    window.location.href = hasOnboarding() ? "/dashboard" : "/onboarding";
   };
 
   const handleGoogleSignIn = () => {
